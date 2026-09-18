@@ -84,7 +84,7 @@ function binloader.load_bin(
 				if band(csum - wd, 0xFFF) ~= 0 then
 					return types.SCPE_CSUM, words_loaded
 				end
-				break
+				return types.SCPE_OK, words_loaded
 			end
 
 			csum = band(csum + t + lo, 0xFFF)
