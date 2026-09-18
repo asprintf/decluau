@@ -60,6 +60,7 @@ export type cpu_t = {
 }
 
 -- Interrupt flag bit assignments (OpenSIMH pdp8_defs.h)
+local INT_LPT            = 0x1       -- 1 << 0 (Line Printer)
 local INT_PTP            = 0x2       -- 1 << 1 (Punch)
 local INT_PTR            = 0x4       -- 1 << 2 (Reader)
 local INT_TTO            = 0x8       -- 1 << 3 (Teleprinter)
@@ -80,11 +81,12 @@ local INT_ION            = 0x10000000-- 1 << 28: Interrupts enabled
 
 local INT_DEV_ENABLE     = 0x3FFF    -- Devices with individual enables
 local INT_ALL            = 0x3FFFFFF -- All device interrupt lines
-local INT_INIT_ENABLE    = bor(INT_TTI, INT_TTO, INT_PTR, INT_PTP)
+local INT_INIT_ENABLE    = bor(INT_TTI, INT_TTO, INT_PTR, INT_PTP, INT_LPT)
 local INT_PENDING        = bor(INT_ION, INT_NO_CIF_PENDING, INT_NO_ION_PENDING)
 
 local cpu = {}
 
+cpu.INT_LPT = INT_LPT
 cpu.INT_PTP = INT_PTP
 cpu.INT_PTR = INT_PTR
 cpu.INT_TTO = INT_TTO
