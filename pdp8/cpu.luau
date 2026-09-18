@@ -55,6 +55,7 @@ export type cpu_t = {
 	-- Device dispatch table & reset callbacks
 	dev_dispatch: { [number]: iot_handler_t },
 	reset_hooks: { () -> () },
+	step_hooks: { (cpu_t) -> () }?,
 	halted: boolean,
 }
 
@@ -165,6 +166,13 @@ end
 
 function cpu.add_reset_hook(self: cpu_t, hook: () -> ())
 	table.insert(self.reset_hooks, hook)
+end
+
+function cpu.add_step_hook(self: cpu_t, hook: (cpu_t) -> ())
+	if self.step_hooks == nil then
+		self.step_hooks = {}
+	end
+	table.insert(self.step_hooks :: { (cpu_t) -> () }, hook)
 end
 
 function cpu.set_dev_handler(self: cpu_t, dev: number, handler: iot_handler_t)
@@ -735,6 +743,13 @@ function cpu.step(self: cpu_t): types.stat_t
 					self.pc = band(self.pc + 1, 0xFFF)
 				end
 			end
+		end
+	end
+
+	local hooks = self.step_hooks
+	if hooks ~= nil then
+		for i = 1, #hooks do
+			hooks[i](self)
 		end
 	end
 
