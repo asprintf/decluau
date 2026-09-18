@@ -31,6 +31,12 @@ function kl8e.new(out_fn: ((char: number) -> ())?): kl8e_t
 	}
 end
 
+function kl8e.input_char(self: kl8e_t, cpu: cpu_mod.cpu_t, ch: number)
+	self.tti_buf = bor(band(ch, 0x7F), 0x80)
+	cpu.dev_done = bor(cpu.dev_done, cpu_mod.INT_TTI)
+	cpu_mod.update_int(cpu)
+end
+
 function kl8e.attach(self: kl8e_t, cpu: cpu_mod.cpu_t)
 	local INT_TTO = cpu_mod.INT_TTO
 	local INT_TTI = cpu_mod.INT_TTI
