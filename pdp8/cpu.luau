@@ -67,6 +67,12 @@ local INT_TTI            = 0x10      -- 1 << 4 (Keyboard)
 local INT_CLK            = 0x20      -- 1 << 5 (Clock)
 local INT_RX             = 0x4000    -- 1 << 14 (RX8E)
 local INT_RK             = 0x8000    -- 1 << 15 (RK8E)
+local INT_RF             = 0x10000   -- 1 << 16 (RF08)
+local INT_DF             = 0x20000   -- 1 << 17 (DF32)
+local INT_MT             = 0x40000   -- 1 << 18 (TM8E)
+local INT_DTA            = 0x80000   -- 1 << 19 (TC08)
+local INT_RL             = 0x100000  -- 1 << 20 (RL8A)
+local INT_CT             = 0x200000  -- 1 << 21 (TA8E)
 
 local INT_NO_ION_PENDING = 0x4000000 -- 1 << 26: ION delay inhibit
 local INT_NO_CIF_PENDING = 0x8000000 -- 1 << 27: CIF inhibit until JMP/JMS
@@ -86,6 +92,12 @@ cpu.INT_TTI = INT_TTI
 cpu.INT_CLK = INT_CLK
 cpu.INT_RK  = INT_RK
 cpu.INT_RX  = INT_RX
+cpu.INT_DF  = INT_DF
+cpu.INT_CT  = INT_CT
+cpu.INT_RF  = INT_RF
+cpu.INT_MT  = INT_MT
+cpu.INT_DTA = INT_DTA
+cpu.INT_RL  = INT_RL
 
 function cpu.new(mem_words: number?): cpu_t
 	local words = mem_words or 32768
