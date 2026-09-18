@@ -74,6 +74,7 @@ local INT_MT             = 0x40000   -- 1 << 18 (TM8E)
 local INT_DTA            = 0x80000   -- 1 << 19 (TC08)
 local INT_RL             = 0x100000  -- 1 << 20 (RL8A)
 local INT_CT             = 0x200000  -- 1 << 21 (TA8E)
+local INT_UF             = 0x800000  -- 1 << 23 (KM8E User Mode Trap)
 
 local INT_NO_ION_PENDING = 0x4000000 -- 1 << 26: ION delay inhibit
 local INT_NO_CIF_PENDING = 0x8000000 -- 1 << 27: CIF inhibit until JMP/JMS
@@ -100,6 +101,11 @@ cpu.INT_RF  = INT_RF
 cpu.INT_MT  = INT_MT
 cpu.INT_DTA = INT_DTA
 cpu.INT_RL  = INT_RL
+cpu.INT_UF  = INT_UF
+cpu.INT_NO_ION_PENDING = INT_NO_ION_PENDING
+cpu.INT_NO_CIF_PENDING = INT_NO_CIF_PENDING
+cpu.INT_ION = INT_ION
+cpu.INT_ALL = INT_ALL
 
 function cpu.new(mem_words: number?): cpu_t
 	local words = mem_words or 32768
@@ -409,11 +415,33 @@ function cpu.step(self: cpu_t): types.stat_t
 				if band(ir, 0x80) ~= 0 then
 					lac = band(lac, 0x1000) -- CLA
 				end
-				if band(ir, 0x4) ~= 0 then
-					lac = bor(lac, self.sr) -- OSR
-				end
-				if band(ir, 0x2) ~= 0 then
-					self.halted = true -- HLT
+				if self.uf ~= 0 or self.ub ~= 0 then
+					if band(ir, 0x6) ~= 0 then
+						-- HLT or OSR in user mode triggers user mode trap
+						self.int_req = bor(self.int_req, INT_UF)
+						self.int_req = band(self.int_req, bnot(INT_ION))
+						self.sf_field = bor(
+							lshift(self.uf ~= 0 and 1 or self.ub, 6),
+							rshift(self.if_field, 9),
+							rshift(self.df_field, 12)
+						)
+						self.if_field = 0
+						self.ib_field = 0
+						self.df_field = 0
+						self.uf = 0
+						self.ub = 0
+						cpu.write_mem(self, 0, self.pc)
+						self.pc = 1
+						self.lac = lac
+						return types.SCPE_OK
+					end
+				else
+					if band(ir, 0x4) ~= 0 then
+						lac = bor(lac, self.sr) -- OSR
+					end
+					if band(ir, 0x2) ~= 0 then
+						self.halted = true -- HLT
+					end
 				end
 
 				self.lac = lac
@@ -559,8 +587,8 @@ function cpu.step(self: cpu_t): types.stat_t
 							end
 							local t = bor(lshift(self.lac, 12), self.mq)
 							self.sc = 0
-							while band(t, 0x1FFFFFF) ~= 0 and
-								band(t, 0x2000000) == band(lshift(t, 1), 0x2000000) do
+							while band(t, 0x7FFFFF) ~= 0 and
+								band(t, 0x800000) == band(lshift(t, 1), 0x800000) do
 								t = lshift(t, 1)
 								self.sc += 1
 							end
@@ -655,6 +683,25 @@ function cpu.step(self: cpu_t): types.stat_t
 
 	elseif op == 6 then
 		-- IOT (I/O Transfer)
+		if self.uf ~= 0 or self.ub ~= 0 then
+			-- User Mode Trap on restricted IOT
+			self.int_req = bor(self.int_req, INT_UF)
+			self.int_req = band(self.int_req, bnot(INT_ION))
+			self.sf_field = bor(
+				lshift(self.uf ~= 0 and 1 or self.ub, 6),
+				rshift(self.if_field, 9),
+				rshift(self.df_field, 12)
+			)
+			self.if_field = 0
+			self.ib_field = 0
+			self.df_field = 0
+			self.uf = 0
+			self.ub = 0
+			cpu.write_mem(self, 0, self.pc)
+			self.pc = 1
+			return types.SCPE_OK
+		end
+
 		local dev_num = band(rshift(ir, 3), 0x3F)
 		local pulse = band(ir, 0x7)
 
@@ -730,7 +777,10 @@ function cpu.step(self: cpu_t): types.stat_t
 				self.int_req = band(self.int_req, bnot(INT_NO_CIF_PENDING))
 			elseif pulse == 4 then
 				local sub_dev = band(dev_num, 0x7)
-				if sub_dev == 1 then
+				if sub_dev == 0 then
+					-- CINT: clear user interrupt
+					self.int_req = band(self.int_req, bnot(INT_UF))
+				elseif sub_dev == 1 then
 					-- RDF
 					self.lac = bor(self.lac, rshift(self.df_field, 9))
 				elseif sub_dev == 2 then
@@ -744,6 +794,19 @@ function cpu.step(self: cpu_t): types.stat_t
 					self.ub = rshift(band(self.sf_field, 0x40), 6)
 					self.ib_field = lshift(band(self.sf_field, 0x38), 9)
 					self.df_field = lshift(band(self.sf_field, 0x7), 12)
+					self.int_req = band(self.int_req, bnot(INT_NO_CIF_PENDING))
+				elseif sub_dev == 5 then
+					-- SINT: skip on user interrupt
+					if band(self.int_req, INT_UF) ~= 0 then
+						self.pc = band(self.pc + 1, 0xFFF)
+					end
+				elseif sub_dev == 6 then
+					-- CUF: clear user buffer
+					self.ub = 0
+					self.int_req = band(self.int_req, bnot(INT_NO_CIF_PENDING))
+				elseif sub_dev == 7 then
+					-- SUF: set user buffer
+					self.ub = 1
 					self.int_req = band(self.int_req, bnot(INT_NO_CIF_PENDING))
 				end
 			end
