@@ -1,0 +1,15 @@
+# Private directory - NEVER COMMIT
+workspace-dir/
+
+# Luau / Lune / Tools
+.lune/
+.pesde/
+pesde.lock
+*.tmp
+
+# OS & Editor files
+.DS_Store
+*.swp
+*~
+.idea/
+.vscode/
